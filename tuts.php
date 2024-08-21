@@ -1,11 +1,11 @@
 <?php
 /*
-Plugin Name: Shy's Tutorial & Handbook Plugin
-Description: A simple plugin to create tutorials and handbooks with a table of contents and access control.
+Plugin Name: Shy's Tutorials & Handbooks
+Description: Create, manage, and restrict access to tutorials and handbooks, with features for manual user assignment and private content sharing.
 Version: 1.0
-Author: Shy Devil
+License: GPLv2
+Author: HackTheDev
 */
-
 
 
 // Add a meta box for marking a tutorial as paid/locked
@@ -21,6 +21,8 @@ function thp_add_paid_meta_box() {
 add_action('add_meta_boxes', 'thp_add_paid_meta_box');
 
 function thp_paid_meta_box_callback($post) {
+    
+    wp_nonce_field('thp_save_paid_meta_box', 'thp_paid_meta_nonce');
     $is_paid = get_post_meta($post->ID, '_is_paid', true);
     ?>
     <label for="thp_is_paid">Post can only be accessed if paid</label>
@@ -29,7 +31,7 @@ function thp_paid_meta_box_callback($post) {
 }
 
 function thp_save_paid_meta_box($post_id) {
-    if (isset($_POST['thp_is_paid'])) {
+    if (isset($_POST['thp_is_paid']) && check_admin_referer('thp_save_paid_meta_box', 'thp_paid_meta_nonce')) {
         update_post_meta($post_id, '_is_paid', '1');
     } else {
         update_post_meta($post_id, '_is_paid', '0');
@@ -249,7 +251,15 @@ add_action('save_post', 'thp_save_memo_meta_box');
 
 // Enqueue styles for TOC
 function thp_enqueue_toc_styles() {
-    wp_enqueue_style('thp_toc_styles', plugin_dir_url(__FILE__) . 'style.css');
+    global $post;
+
+    // Check if the post is of type 'tutorial_handbook' or if it contains the shortcodes
+    if (
+        is_singular('tutorial_handbook') ||
+        (isset($post->post_content) && (has_shortcode($post->post_content, 'shy_tutorials') || has_shortcode($post->post_content, 'shy_private_tutorials')))
+    ) {
+        wp_enqueue_style('thp_toc_styles', plugin_dir_url(__FILE__) . 'style.css', array(), filemtime(plugin_dir_path(__FILE__) . 'style.css'));
+    }
 }
 add_action('wp_enqueue_scripts', 'thp_enqueue_toc_styles');
 
@@ -266,7 +276,7 @@ function thp_access_control_callback($post) {
     echo '<ul>';
     foreach ($users as $user) {
         $checked = in_array($user->ID, $assigned_users) ? 'checked' : '';
-        echo '<li><label><input type="checkbox" name="assigned_users[]" value="' . $user->ID . '" ' . $checked . '> ' . $user->display_name . '</label></li>';
+        echo '<li><label><input type="checkbox" name="assigned_users[]" value="' . esc_attr($user->ID) . '" ' . esc_attr($checked) . '> ' . esc_attr($user->display_name) . '</label></li>';
     }
     echo '</ul>';
 }
@@ -341,7 +351,7 @@ function shy_assigned_articles_shortcode($atts) {
                         $description = get_post_meta($post_id, '_thp_description', true); // Get the custom description
                         
                         // Use the common rendering function
-                        echo thp_render_single_article($post_id, $is_paid, true, $description);
+                        echo wp_kses_post(thp_render_single_article($post_id, $is_paid, true, $description));
                     }
 
                 endwhile;
@@ -409,7 +419,7 @@ function shy_knowledge_base_shortcode($atts) {
                     $user_has_access = in_array(get_current_user_id(), $assigned_users);
 
                     // Use the common rendering function
-                    echo thp_render_single_article($post_id, $is_paid, $user_has_access, $description);
+                    echo wp_kses_post(thp_render_single_article($post_id, $is_paid, $user_has_access, $description));
 
                 endwhile;
             else : ?>
@@ -451,9 +461,9 @@ function thp_render_single_article($post_id, $is_paid, $user_has_access, $descri
             <?php endif; ?>
             <h2 class="article-title">
                 <?php if (!$is_paid || $user_has_access) : ?>
-                    <a href="<?php echo get_permalink($post_id); ?>"><?php echo get_the_title($post_id); ?></a>
+                    <a href="<?php echo esc_html(get_permalink($post_id)); ?>"><?php echo esc_html(get_the_title($post_id)); ?></a>
                 <?php else : ?>
-                    <?php echo get_the_title($post_id); ?>
+                    <?php echo esc_html(get_the_title($post_id)); ?>
                 <?php endif; ?>
             </h2>
         </div>
