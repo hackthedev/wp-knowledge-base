@@ -1,0 +1,220 @@
+/* Container holding both TOC and post content */
+.toc-content-container {
+    display: flex;
+    gap: 30px; /* Increased space between TOC and post content */
+    margin-top: 20px;
+    max-width: calc(100% - 320px);
+}
+
+/* TOC Widget Styling */
+.toc-widget {
+    position: sticky;
+    top: 20px;
+    max-width: 300px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    flex-shrink: 0;
+}
+
+/* Post Content Styling */
+.post-content {
+    background-color: #F8F9FA;
+    border-radius: 8px;    
+    padding: 0 20px 20px 20px;
+    border: 1px solid #ddd;
+
+    flex-grow: 1;
+    max-width: calc(100% - 320px); /* Adjust the content area to take up more space */
+    
+}
+
+/* TOC List Styling */
+.toc-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.toc-list li {
+    margin-bottom: 8px;
+}
+
+.toc-list li a {
+    text-decoration: none;
+    color: #0073aa;
+    font-size: 14px; /* Adjusted font size for better readability */
+}
+
+.toc-list li a:hover {
+    text-decoration: underline;
+}
+
+/* TOC Heading Styling */
+.toc-widget h2 {
+    font-size: 18px !important; /* Smaller heading for TOC to match modern design */
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+/* Post Title Styling */
+.post-content h1 {
+    font-size: 20px; /* Adjust the size as per your design */
+    margin-bottom: 20px;
+}
+
+.wp-block-post-title {
+    display: none !important;
+}
+
+.tutorial_page_title {
+    font-weight: bold;
+    font-size: 30px !important;
+}
+
+h2 {
+    font-size: 25px !important;
+    font-weight: bold;
+}
+
+h3 {
+    font-size: 20px !important;
+    font-weight: bold;
+}
+
+
+
+
+.post-meta {
+    display: block;
+
+    margin: 40px 10px 0px 10px;
+    font-size: 14px;
+    color: #666;
+}
+
+.author-info img {
+    display: block !important;
+    float: left !important;
+}
+
+.author-info {
+    display: block !important;
+    float: left !important;
+}
+
+.author-info .avatar {
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.post-meta p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.post-content img {
+    border-radius: 10px;
+}
+
+
+
+/* Knowledge Base */
+.knowledge-base-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    background-color: #f7f8fa;
+    border-radius: 8px;
+    /*box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);*/
+}
+
+.knowledge-base-title {
+    text-align: center;
+    font-size: 2.5em;
+    margin-bottom: 30px;
+    color: #333;
+}
+
+.articles-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+.article-item {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.article-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.article-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.article-title {
+    font-size: 1.5em;
+    margin: 0;
+    color: #0073aa;
+    flex: 1;
+}
+
+.article-title a {
+    text-decoration: none;
+    color: inherit;
+    transition: color 0.3s;
+}
+
+.article-title a:hover {
+    color: #00507c;
+}
+
+.article-meta {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.article-excerpt {
+    font-size: 1em;
+    color: #555;
+}
+
+.lock-icon {
+    margin-right: 10px;
+    color: #e63946;
+}
+
+.article-status {
+    background-color: #e63946;
+    color: #ffffff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    margin-left: 10px;
+    text-transform: uppercase;
+}
+
+.article-locked {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.article-locked p {
+    margin-bottom: 15px;
+    font-size: 1em;
+    color: #333;
+}
