@@ -33,8 +33,12 @@
 
 /* TOC List Styling */
 .toc-list {
-    list-style-type: none;
+    list-style-type: none !important;
     padding-left: 0;
+}
+
+.toc-list ul {
+    margin-left: 0;
 }
 
 .toc-list li {
@@ -234,8 +238,4 @@ h3 {
 }
 .article-item {
     margin-bottom: 20px;
-}
-
-.post-content h1 {
-    display: none !important;
 }
