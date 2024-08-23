@@ -7,6 +7,8 @@ License: GPLv2
 Author: HackTheDev
 */
 
+require_once plugin_dir_path(__FILE__) . 'PayPalLibrary.php';
+
 
 // Add a meta box for marking a tutorial as paid/locked
 function thp_add_paid_meta_box() {
@@ -48,6 +50,7 @@ function thp_register_custom_post_type() {
         'has_archive' => true,
         'rewrite' => array('slug' => 'tutorials'),
         'publicly_queryable' => true,
+        'show_in_rest' => true
     );
     register_post_type('tutorial_handbook', $args);
 }
@@ -436,8 +439,99 @@ function shy_knowledge_base_shortcode($atts) {
 add_shortcode('shy_tutorials', 'shy_knowledge_base_shortcode');
 
 
+// Add PayPal Settings submenu
+function thp_add_paypal_settings_submenu() {
+    add_submenu_page(
+        'edit.php?post_type=tutorial_handbook', // Parent slug
+        'PayPal Settings',                      // Page title
+        'PayPal Settings',                      // Menu title
+        'manage_options',                       // Capability
+        'thp_paypal_settings',                  // Menu slug
+        'thp_paypal_settings_page_callback'     // Callback function
+    );
+}
+add_action('admin_menu', 'thp_add_paypal_settings_submenu');
 
-// Function to generate the HTML structure for a single article
+// Register PayPal settings
+function thp_register_paypal_settings() {
+    register_setting('thp_paypal_settings_group', 'thp_paypal_client_id');
+    register_setting('thp_paypal_settings_group', 'thp_paypal_secret');
+    register_setting('thp_paypal_settings_group', 'thp_paypal_currency');
+
+    add_settings_section(
+        'thp_paypal_main_section',
+        'PayPal Configuration',
+        'thp_paypal_main_section_callback',
+        'thp_paypal_settings'
+    );
+
+    add_settings_field(
+        'thp_paypal_client_id',
+        'PayPal Client ID',
+        'thp_paypal_client_id_callback',
+        'thp_paypal_settings',
+        'thp_paypal_main_section'
+    );
+
+    add_settings_field(
+        'thp_paypal_secret',
+        'PayPal Secret',
+        'thp_paypal_secret_callback',
+        'thp_paypal_settings',
+        'thp_paypal_main_section'
+    );
+
+    add_settings_field(
+        'thp_paypal_currency',
+        'Currency',
+        'thp_paypal_currency_callback',
+        'thp_paypal_settings',
+        'thp_paypal_main_section'
+    );
+}
+add_action('admin_init', 'thp_register_paypal_settings');
+// Section description callback
+function thp_paypal_main_section_callback() {
+    echo '<p>Enter your PayPal API credentials below.</p>';
+}
+
+// Client ID field callback
+function thp_paypal_client_id_callback() {
+    $client_id = get_option('thp_paypal_client_id');
+    echo '<input type="text" name="thp_paypal_client_id" value="' . esc_attr($client_id) . '" style="width: 100%;" />';
+}
+
+// Secret field callback
+function thp_paypal_secret_callback() {
+    $secret = get_option('thp_paypal_secret');
+    echo '<input type="password" name="thp_paypal_secret" value="' . esc_attr($secret) . '" style="width: 100%;" />';
+}
+
+// Currency field callback
+function thp_paypal_currency_callback() {
+    $currency = get_option('thp_paypal_currency', 'USD'); // Default to USD
+    echo '<input type="text" name="thp_paypal_currency" value="' . esc_attr($currency) . '" style="width: 100%;" />';
+    echo '<p class="description">Enter the currency code (e.g., USD, EUR).</p>';
+}
+// Settings page display callback
+function thp_paypal_settings_page_callback() {
+    ?>
+    <div class="wrap">
+        <h1>PayPal Settings</h1>
+        <form method="post" action="options.php">
+            <?php
+                settings_fields('thp_paypal_settings_group');
+                do_settings_sections('thp_paypal_settings');
+                submit_button();
+            ?>
+        </form>
+    </div>
+    <?php
+}
+
+
+
+// Modify the single article rendering to include the PayPal purchase link
 function thp_render_single_article($post_id, $is_paid, $user_has_access, $description) {
     ob_start();
 
@@ -445,7 +539,6 @@ function thp_render_single_article($post_id, $is_paid, $user_has_access, $descri
         // Get the full content of the post
         $post = get_post($post_id);
         if ($post) {
-            // Apply 'the_content' filters, including the TOC
             $content = apply_filters('the_content', $post->post_content);
         }
     } else {
@@ -457,7 +550,7 @@ function thp_render_single_article($post_id, $is_paid, $user_has_access, $descri
     <div class="article-item <?php echo $is_paid ? 'locked' : ''; ?>">
         <div class="article-header">
             <?php if ($is_paid && !$user_has_access) : ?>
-                <span class="lock-icon">&#x1f512;</span> <!-- Lock icon -->
+                <span class="lock-icon">&#x1f512;</span>
             <?php endif; ?>
             <h2 class="article-title">
                 <?php if (!$is_paid || $user_has_access) : ?>
@@ -477,18 +570,169 @@ function thp_render_single_article($post_id, $is_paid, $user_has_access, $descri
             <p><?php echo esc_html($description); ?></p>
         </div>
 
-        <?php if ($user_has_access || !$is_paid) : ?>
-            <div class="article-content">
-                <?php //echo $content; ?>
-            </div>
-        <?php endif; ?>
-
         <?php if ($is_paid && !$user_has_access) : ?>
             <div class="article-locked">
-                <p>This post is locked. Please purchase access to view it.</p>
+                <?php if (is_user_logged_in()): ?>
+                    <p>This post is locked. Please purchase access to view it.</p>
+                    <?php 
+                        $paypal_link = thp_generate_paypal_link($post_id); 
+                        if ($paypal_link): ?>
+                        <a href="<?php echo esc_url($paypal_link); ?>" class="button">Purchase for $<?php echo esc_html(get_post_meta($post_id, '_thp_tutorial_price', true)); ?></a>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <p>Please <a href="<?php echo wp_login_url(get_permalink($post_id)); ?>">login</a> or <a href="<?php echo wp_registration_url(); ?>">register</a> to purchase access.</p>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
     </div>
     <?php
     return ob_get_clean();
 }
+
+
+
+
+
+
+
+// Generate a PayPal payment link using the PayPalLibrary
+function thp_generate_paypal_link($post_id) {
+    $client_id = get_option('thp_paypal_client_id');
+    $secret = get_option('thp_paypal_secret');
+    $currency = get_option('thp_currency');
+    $price = get_post_meta($post_id, '_thp_tutorial_price', true);
+
+    if (!$client_id || !$secret || !$price || !$currency) {
+        return false;
+    }
+
+    $paypal = new PayPalLibrary($client_id, $secret, $currency);
+    $description = get_the_title($post_id);
+    $return_url = get_permalink($post_id);
+    $cancel_url = get_permalink($post_id);
+
+    return $paypal->generatePurchase($price, $description, $return_url, $cancel_url);
+}
+
+
+function thp_paypal_webhook_listener() {
+    $client_id = get_option('thp_paypal_client_id');
+    $secret = get_option('thp_paypal_secret');
+    $webhook_id = 'YOUR_WEBHOOK_ID'; // Replace with your actual webhook ID
+
+    $paypal = new PayPalLibrary($client_id, $secret, 'USD', $webhook_id);
+
+    $paypal->handleWebhook(function ($event) {
+        if ($event['event_type'] == 'PAYMENT.SALE.COMPLETED') {
+            $sale_id = $event['resource']['id'];
+            $payer_email = $event['resource']['payer']['email_address'];
+            $amount = $event['resource']['amount']['total'];
+            $currency = $event['resource']['amount']['currency'];
+
+            // Assuming you're storing the user ID and post ID in the custom field during purchase creation
+            $custom = json_decode($event['resource']['invoice_number'], true);
+            $user_id = $custom['user_id'];
+            $post_id = $custom['post_id'];
+
+            // Save the transaction and update user access
+            thp_save_transaction($user_id, $post_id, $sale_id, $amount, $currency, $payer_email);
+            thp_mark_tutorial_as_purchased($user_id, $post_id);
+        }
+    });
+}
+
+
+function thp_save_transaction($user_id, $post_id, $transaction_id, $amount, $currency, $payer_email) {
+    $transaction_data = array(
+        'user_id' => $user_id,
+        'post_id' => $post_id,
+        'transaction_id' => $transaction_id,
+        'amount' => $amount,
+        'currency' => $currency,
+        'payer_email' => $payer_email,
+        'date' => current_time('mysql')
+    );
+
+    // Create a new transaction post
+    $transaction_post_id = wp_insert_post(array(
+        'post_type' => 'transaction',
+        'post_title' => 'Transaction for ' . get_the_title($post_id),
+        'post_status' => 'publish',
+        'meta_input' => $transaction_data,
+    ));
+}
+
+function thp_mark_tutorial_as_purchased($user_id, $post_id) {
+    // Add the post ID to the user's purchased tutorials list (stored as user meta)
+    $purchased_tutorials = get_user_meta($user_id, '_purchased_tutorials', true);
+
+    if (!is_array($purchased_tutorials)) {
+        $purchased_tutorials = array();
+    }
+
+    if (!in_array($post_id, $purchased_tutorials)) {
+        $purchased_tutorials[] = $post_id;
+        update_user_meta($user_id, '_purchased_tutorials', $purchased_tutorials);
+    }
+}
+
+
+
+function thp_init_webhook_listener() {
+    add_rewrite_rule('paypal-webhook/?$', 'index.php?paypal_webhook=1', 'top');
+}
+add_action('init', 'thp_init_webhook_listener');
+
+function thp_add_paypal_query_vars($vars) {
+    $vars[] = 'paypal_webhook';
+    return $vars;
+}
+add_filter('query_vars', 'thp_add_paypal_query_vars');
+
+function thp_handle_paypal_webhook() {
+    global $wp_query;
+
+    if (isset($wp_query->query_vars['paypal_webhook'])) {
+        thp_paypal_webhook_listener();
+    }
+}
+add_action('template_redirect', 'thp_handle_paypal_webhook');
+
+
+
+// Register the Transactions custom post type under Tutorials & Handbooks menu
+function thp_register_transaction_post_type() {
+    $labels = array(
+        'name'               => 'Transactions',
+        'singular_name'      => 'Transaction',
+        'menu_name'          => 'Transactions',
+        'name_admin_bar'     => 'Transaction',
+        'add_new'            => 'Add New',
+        'add_new_item'       => 'Add New Transaction',
+        'new_item'           => 'New Transaction',
+        'edit_item'          => 'Edit Transaction',
+        'view_item'          => 'View Transaction',
+        'all_items'          => 'All Transactions',
+        'search_items'       => 'Search Transactions',
+        'parent_item_colon'  => 'Parent Transactions:',
+        'not_found'          => 'No transactions found.',
+        'not_found_in_trash' => 'No transactions found in Trash.',
+    );
+
+    $args = array(
+        'labels'             => $labels,
+        'public'             => false,
+        'publicly_queryable' => false,
+        'show_ui'            => true,
+        'show_in_menu'       => 'edit.php?post_type=tutorial_handbook',  // Make it a sub-menu
+        'query_var'          => true,
+        'capability_type'    => 'post',
+        'has_archive'        => false,
+        'hierarchical'       => false,
+        'menu_position'      => 20,
+        'supports'           => array('title', 'custom-fields'),
+    );
+
+    register_post_type('transaction', $args);
+}
+add_action('init', 'thp_register_transaction_post_type');
