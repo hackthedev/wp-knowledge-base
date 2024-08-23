@@ -65,7 +65,18 @@ function thp_price_meta_box_callback($post) {
 
 function thp_save_price_meta_box($post_id) {
     if (isset($_POST['thp_tutorial_price']) && check_admin_referer('thp_save_price_meta_box', 'thp_price_meta_nonce')) {
-        update_post_meta($post_id, '_thp_tutorial_price', sanitize_text_field($_POST['thp_tutorial_price']));
+        $price = sanitize_text_field($_POST['thp_tutorial_price']);
+        
+        // Replace comma with a period if used as a decimal separator
+        $price = str_replace(',', '.', $price);
+        
+        // Validate the price to ensure it is a valid number
+        if (is_numeric($price) && $price >= 0) {
+            update_post_meta($post_id, '_thp_tutorial_price', $price);
+        } else {
+            // Handle invalid price (optional)
+            // You might want to display an error message or set a default value
+        }
     }
 }
 add_action('save_post', 'thp_save_price_meta_box');
@@ -487,6 +498,7 @@ function thp_register_paypal_settings() {
     register_setting('thp_paypal_settings_group', 'thp_paypal_client_id');
     register_setting('thp_paypal_settings_group', 'thp_paypal_secret');
     register_setting('thp_paypal_settings_group', 'thp_paypal_currency');
+    register_setting('thp_paypal_settings_group', 'thp_paypal_webhook_id'); // Register webhook ID
 
     add_settings_section(
         'thp_paypal_main_section',
@@ -518,11 +530,25 @@ function thp_register_paypal_settings() {
         'thp_paypal_settings',
         'thp_paypal_main_section'
     );
+
+    add_settings_field(
+        'thp_paypal_webhook_id', // Field for webhook ID
+        'PayPal Webhook ID',
+        'thp_paypal_webhook_id_callback',
+        'thp_paypal_settings',
+        'thp_paypal_main_section'
+    );
 }
 add_action('admin_init', 'thp_register_paypal_settings');
 // Section description callback
 function thp_paypal_main_section_callback() {
     echo '<p>Enter your PayPal API credentials below.</p>';
+}
+
+// Webhook ID field callback
+function thp_paypal_webhook_id_callback() {
+    $webhook_id = get_option('thp_paypal_webhook_id');
+    echo '<input type="text" name="thp_paypal_webhook_id" value="' . esc_attr($webhook_id) . '" style="width: 100%;" />';
 }
 
 // Client ID field callback
@@ -606,6 +632,9 @@ function thp_render_single_article($post_id, $is_paid, $user_has_access, $descri
                     <p>This post is locked. Please purchase access to view it.</p>
                     <?php 
                         $paypal_link = thp_generate_paypal_link($post_id); 
+
+                        thp_log_error('Generated PayPal link: "'.$paypal_link.'"');
+
                         if ($paypal_link): ?>
                         <a href="<?php echo esc_url($paypal_link); ?>" class="button">Purchase for $<?php echo esc_html(get_post_meta($post_id, '_thp_tutorial_price', true)); ?></a>
                     <?php endif; ?>
@@ -619,6 +648,81 @@ function thp_render_single_article($post_id, $is_paid, $user_has_access, $descri
     return ob_get_clean();
 }
 
+/* Logs */
+function thp_register_logs_page() {
+    add_submenu_page(
+        'edit.php?post_type=tutorial_handbook', // Parent slug
+        'Logs',                           // Page title
+        'Logs',                           // Menu title
+        'manage_options',                       // Capability
+        'thp-error-logs',                       // Menu slug
+        'thp_display_logs_page'                 // Function to display the page
+    );
+}
+add_action('admin_menu', 'thp_register_logs_page');
+
+
+
+// usage: thp_log_error('PayPal link generation failed.');
+function thp_log_error($message) {
+    // Ensure message is a string and sanitize it
+    $message = sanitize_text_field($message);
+
+    // Add a timestamp to the log message
+    $timestamp = date('Y-m-d H:i:s');
+    $log_entry = "{$timestamp} - {$message}";
+
+    // Get existing logs, or initialize an empty array if none exist
+    $logs = get_option('thp_error_logs', array());
+
+    // Add the new log entry
+    $logs[] = $log_entry;
+
+    // Limit logs to the last 50 entries
+    if (count($logs) > 50) {
+        $logs = array_slice($logs, -50);
+    }
+
+    // Save the logs back to the database
+    update_option('thp_error_logs', $logs);
+}
+
+
+
+function thp_display_logs_page() {
+    // Handle the log clearing action
+    if (isset($_POST['thp_clear_logs']) && check_admin_referer('thp_clear_logs_action', 'thp_clear_logs_nonce')) {
+        update_option('thp_error_logs', array());
+        echo '<div class="updated"><p>Logs cleared.</p></div>';
+    }
+
+    // Retrieve the logs
+    $logs = get_option('thp_error_logs', array());
+
+    ?>
+    <div class="wrap">
+        <h2>Logs</h2>
+        <div style="background: #fff; padding: 20px; border: 1px solid #ccc; max-height: 400px; overflow-y: scroll;">
+            <?php if (!empty($logs)) : ?>
+                <ul style="list-style-type: none; padding: 0;">
+                    <?php foreach (array_reverse($logs) as $log) : ?>
+                        <li><?php echo esc_html($log); ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php else : ?>
+                <p>No logs available.</p>
+            <?php endif; ?>
+        </div>
+
+        <form method="post">
+            <?php wp_nonce_field('thp_clear_logs_action', 'thp_clear_logs_nonce'); ?>
+            <input type="hidden" name="thp_clear_logs" value="1">
+            <?php submit_button('Clear Logs'); ?>
+        </form>
+    </div>
+    <?php
+}
+
 
 
 
@@ -629,13 +733,14 @@ function thp_render_single_article($post_id, $is_paid, $user_has_access, $descri
 function thp_generate_paypal_link($post_id) {
     $client_id = get_option('thp_paypal_client_id');
     $secret = get_option('thp_paypal_secret');
-    $currency = get_option('thp_currency');
+    $currency = get_option('thp_paypal_currency');
     $price = get_post_meta($post_id, '_thp_tutorial_price', true);
 
     if (!$client_id || !$secret || !$price || !$currency) {
         return false;
     }
 
+    
     $paypal = new PayPalLibrary($client_id, $secret, $currency);
     $description = get_the_title($post_id);
     $return_url = get_permalink($post_id);
@@ -645,31 +750,7 @@ function thp_generate_paypal_link($post_id) {
 }
 
 
-function thp_paypal_webhook_listener() {
-    $client_id = get_option('thp_paypal_client_id');
-    $secret = get_option('thp_paypal_secret');
-    $webhook_id = 'YOUR_WEBHOOK_ID'; // Replace with your actual webhook ID
 
-    $paypal = new PayPalLibrary($client_id, $secret, 'USD', $webhook_id);
-
-    $paypal->handleWebhook(function ($event) {
-        if ($event['event_type'] == 'PAYMENT.SALE.COMPLETED') {
-            $sale_id = $event['resource']['id'];
-            $payer_email = $event['resource']['payer']['email_address'];
-            $amount = $event['resource']['amount']['total'];
-            $currency = $event['resource']['amount']['currency'];
-
-            // Assuming you're storing the user ID and post ID in the custom field during purchase creation
-            $custom = json_decode($event['resource']['invoice_number'], true);
-            $user_id = $custom['user_id'];
-            $post_id = $custom['post_id'];
-
-            // Save the transaction and update user access
-            thp_save_transaction($user_id, $post_id, $sale_id, $amount, $currency, $payer_email);
-            thp_mark_tutorial_as_purchased($user_id, $post_id);
-        }
-    });
-}
 
 
 function thp_save_transaction($user_id, $post_id, $transaction_id, $amount, $currency, $payer_email) {
@@ -708,25 +789,62 @@ function thp_mark_tutorial_as_purchased($user_id, $post_id) {
 
 
 
-function thp_init_webhook_listener() {
-    add_rewrite_rule('paypal-webhook/?$', 'index.php?paypal_webhook=1', 'top');
+/* Webhook code */
+// Register the custom endpoint for PayPal webhook
+function thp_register_webhook_endpoint() {
+    add_rewrite_rule(
+        '^paypal-webhook/?$', // The custom endpoint
+        'index.php?paypal_webhook=1', // The query variable
+        'top'
+    );
 }
-add_action('init', 'thp_init_webhook_listener');
+add_action('init', 'thp_register_webhook_endpoint');
 
-function thp_add_paypal_query_vars($vars) {
+// Add the webhook query variable
+function thp_add_webhook_query_var($vars) {
     $vars[] = 'paypal_webhook';
     return $vars;
 }
-add_filter('query_vars', 'thp_add_paypal_query_vars');
+add_filter('query_vars', 'thp_add_webhook_query_var');
 
+// Handle the PayPal webhook
 function thp_handle_paypal_webhook() {
     global $wp_query;
 
     if (isset($wp_query->query_vars['paypal_webhook'])) {
-        thp_paypal_webhook_listener();
+        $client_id = get_option('thp_paypal_client_id');
+        $secret = get_option('thp_paypal_secret');
+        $webhook_id = get_option('thp_paypal_webhook_id'); // Get the webhook ID from settings
+
+        if (!$client_id || !$secret || !$webhook_id) {
+            thp_log_error('Missing PayPal API credentials or Webhook ID.');
+            return;
+        }
+
+        $paypal = new PayPalLibrary($client_id, $secret, 'USD', $webhook_id);
+
+        $paypal->handleWebhook(function ($event) {
+            if ($event['event_type'] == 'PAYMENT.SALE.COMPLETED') {
+                $sale_id = $event['resource']['id'];
+                $payer_email = $event['resource']['payer']['email_address'];
+                $amount = $event['resource']['amount']['total'];
+                $currency = $event['resource']['amount']['currency'];
+
+                $custom = json_decode($event['resource']['invoice_number'], true);
+                $user_id = $custom['user_id'];
+                $post_id = $custom['post_id'];
+
+                thp_save_transaction($user_id, $post_id, $sale_id, $amount, $currency, $payer_email);
+                thp_mark_tutorial_as_purchased($user_id, $post_id);
+            }
+        });
+
+        status_header(200); // Respond with 200 OK
+        exit();
     }
 }
 add_action('template_redirect', 'thp_handle_paypal_webhook');
+
 
 
 

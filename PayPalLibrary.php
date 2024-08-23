@@ -4,7 +4,7 @@ class PayPalLibrary {
     private $client_id;
     private $secret;
     private $currency;
-    private $webhook_id;
+    private $webhook_id;    
 
     public function __construct($client_id, $secret, $currency = 'USD', $webhook_id = '') {
         $this->client_id = $client_id;
@@ -15,7 +15,7 @@ class PayPalLibrary {
 
     public function generatePurchase($amount, $description, $return_url, $cancel_url) {
         $auth = base64_encode($this->client_id . ":" . $this->secret);
-
+    
         // Get access token
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, "https://api.paypal.com/v1/oauth2/token");
@@ -23,23 +23,28 @@ class PayPalLibrary {
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, "grant_type=client_credentials");
         curl_setopt($ch, CURLOPT_USERPWD, $this->client_id . ":" . $this->secret);
-
+    
         $headers = array();
         $headers[] = "Accept: application/json";
         $headers[] = "Accept-Language: en_US";
         $headers[] = "Authorization: Basic " . $auth;
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
+    
         $result = curl_exec($ch);
         curl_close($ch);
-
+    
         if (empty($result)) {
             return false;
         }
-
+    
         $json = json_decode($result);
-        $access_token = $json->access_token;
-
+        $access_token = isset($json->access_token) ? $json->access_token : null;
+    
+        if (!$access_token) {
+            return false;
+        }
+    
+    
         // Create payment
         $payment_data = array(
             "intent" => "sale",
@@ -60,7 +65,7 @@ class PayPalLibrary {
                 )
             )
         );
-
+    
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, "https://api.paypal.com/v1/payments/payment");
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -70,23 +75,25 @@ class PayPalLibrary {
             "Content-Type: application/json",
             "Authorization: Bearer " . $access_token
         ));
-
+    
         $result = curl_exec($ch);
         curl_close($ch);
-
+    
         if (empty($result)) {
             return false;
         }
-
+    
         $json = json_decode($result);
+    
         foreach ($json->links as $link) {
             if ($link->rel == 'approval_url') {
                 return $link->href;
             }
         }
-
+    
         return false;
     }
+    
 
     public function verifyWebhook($event) {
         if (!$this->webhook_id) {
