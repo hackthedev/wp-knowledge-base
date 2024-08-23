@@ -112,38 +112,34 @@ function thp_generate_toc($content) {
             
             // To track the nesting level
             $current_level = 2;
-            $list_stack = array();
+            $open_lists = 0; // Track the number of open <ul> tags
 
             foreach ($matches[2] as $key => $heading) {
                 $heading_level = (int)$matches[1][$key];
                 $anchor = sanitize_title($heading);
 
-                // Open new lists as needed
                 if ($heading_level > $current_level) {
-                    // Push current list onto stack
-                    $list_stack[] = $toc;
-                    $toc .= '<ul>';
+                    while ($heading_level > $current_level) {
+                        $toc .= '<ul>';
+                        $open_lists++;
+                        $current_level++;
+                    }
                 } elseif ($heading_level < $current_level) {
-                    // Close lists as needed
-                    while ($heading_level < $current_level) {
+                    while ($heading_level < $current_level && $open_lists > 0) {
                         $toc .= '</ul>';
+                        $open_lists--;
                         $current_level--;
-                        $toc = array_pop($list_stack);
                     }
                 }
 
-                // Add the list item
                 $toc .= '<li><a href="#' . $anchor . '">' . $heading . '</a></li>';
-
-                // Update current level
-                $current_level = $heading_level;
                 $content = str_replace($matches[0][$key], '<h' . $heading_level . ' id="' . $anchor . '">' . $heading . '</h' . $heading_level . '>', $content);
             }
 
             // Close any remaining open lists
-            while ($current_level > 2) {
+            while ($open_lists > 0) {
                 $toc .= '</ul>';
-                $current_level--;
+                $open_lists--;
             }
 
             $toc .= '</ul></aside>';
@@ -174,6 +170,7 @@ function thp_generate_toc($content) {
     return '<div class="post-content"><h1 class="tutorial_page_title">' . get_the_title($post->ID) . '</h1>' . $content . '</div>';
 }
 add_filter('the_content', 'thp_generate_toc');
+
 
 
 
