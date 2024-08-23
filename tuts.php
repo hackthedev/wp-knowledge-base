@@ -2,7 +2,7 @@
 /*
 Plugin Name: Shy's Tutorials & Handbooks
 Description: Create, manage, and restrict access to tutorials and handbooks, with features for manual user assignment and private content sharing.
-Version: 1.0
+Version: 1.2
 License: GPLv2
 Author: HackTheDev
 */
@@ -40,6 +40,36 @@ function thp_save_paid_meta_box($post_id) {
     }
 }
 add_action('save_post', 'thp_save_paid_meta_box');
+
+// Add a meta box for tutorial price
+function thp_add_price_meta_box() {
+    add_meta_box(
+        'thp_price_meta_box',
+        'Tutorial Price',
+        'thp_price_meta_box_callback',
+        'tutorial_handbook', // Ensure this matches your custom post type
+        'side',
+        'high' // Position it high up in the sidebar
+    );
+}
+add_action('add_meta_boxes', 'thp_add_price_meta_box');
+
+function thp_price_meta_box_callback($post) {
+    wp_nonce_field('thp_save_price_meta_box', 'thp_price_meta_nonce');
+    $price = get_post_meta($post->ID, '_thp_tutorial_price', true);
+    ?>
+    <label for="thp_tutorial_price">Price ($):</label>
+    <input type="text" name="thp_tutorial_price" id="thp_tutorial_price" value="<?php echo esc_attr($price); ?>" />
+    <?php
+}
+
+function thp_save_price_meta_box($post_id) {
+    if (isset($_POST['thp_tutorial_price']) && check_admin_referer('thp_save_price_meta_box', 'thp_price_meta_nonce')) {
+        update_post_meta($post_id, '_thp_tutorial_price', sanitize_text_field($_POST['thp_tutorial_price']));
+    }
+}
+add_action('save_post', 'thp_save_price_meta_box');
+
 
 // Register Custom Post Type
 function thp_register_custom_post_type() {
