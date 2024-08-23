@@ -2,7 +2,7 @@
 /*
 Plugin Name: Shy's Tutorials & Handbooks
 Description: Create, manage, and restrict access to tutorials and handbooks, with features for manual user assignment and private content sharing.
-Version: 1.2
+Version: 1.3
 License: GPLv2
 Author: HackTheDev
 */
@@ -429,13 +429,14 @@ function shy_knowledge_base_shortcode($atts) {
     ?>
     <div class="knowledge-base-container">
         <h2 class="knowledge-base-title"><?php echo esc_html(get_the_title()); ?></h2>
-        <div class="articles-list">
+        
+        <!-- Search Bar -->
+        <div class="search-bar">
+            <input type="text" id="search-input" placeholder="Search articles..." />
+        </div>
 
-            <style>
-                .post-content h1 {
-                    display: none !important;
-                }
-            </style>
+        <!-- Articles List -->
+        <div class="articles-list">
 
             <?php
             // Query for all posts in the 'tutorial_handbook' post type
@@ -462,8 +463,12 @@ function shy_knowledge_base_shortcode($atts) {
 
                     $user_has_access = in_array(get_current_user_id(), $assigned_users);
 
-                    // Use the common rendering function
-                    echo wp_kses_post(thp_render_single_article($post_id, $is_paid, $user_has_access, $description));
+                    // Render each article with a specific class for filtering
+                    ?>
+                    <div class="article-item" data-title="<?php echo esc_attr(get_the_title()); ?>" data-description="<?php echo esc_attr($description); ?>">
+                        <?php echo wp_kses_post(thp_render_single_article($post_id, $is_paid, $user_has_access, $description)); ?>
+                    </div>
+                    <?php
 
                 endwhile;
             else : ?>
@@ -473,11 +478,36 @@ function shy_knowledge_base_shortcode($atts) {
             wp_reset_postdata(); ?>
         </div>
     </div>
+
+    <!-- JavaScript for Filtering -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const searchInput = document.getElementById('search-input');
+            const articles = document.querySelectorAll('.article-item');
+
+            searchInput.addEventListener('input', function () {
+                const searchTerm = searchInput.value.toLowerCase();
+
+                articles.forEach(article => {
+                    const title = article.getAttribute('data-title').toLowerCase();
+                    const description = article.getAttribute('data-description').toLowerCase();
+
+                    if (title.includes(searchTerm) || description.includes(searchTerm)) {
+                        article.style.display = '';
+                    } else {
+                        article.style.display = 'none';
+                    }
+                });
+            });
+        });
+    </script>
+
     <?php
 
     return ob_get_clean(); // Return the buffered content
 }
 add_shortcode('shy_tutorials', 'shy_knowledge_base_shortcode');
+
 
 
 // Add PayPal Settings submenu
@@ -784,8 +814,19 @@ function thp_mark_tutorial_as_purchased($user_id, $post_id) {
     if (!in_array($post_id, $purchased_tutorials)) {
         $purchased_tutorials[] = $post_id;
         update_user_meta($user_id, '_purchased_tutorials', $purchased_tutorials);
+
+        // Optionally, you might want to grant the user access here
+        // Example: update post status or set a specific user role
+        $post = get_post($post_id);
+        if ($post && $post->post_status != 'publish') {
+            wp_update_post(array(
+                'ID' => $post_id,
+                'post_status' => 'publish'
+            ));
+        }
     }
 }
+
 
 
 

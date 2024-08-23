@@ -219,3 +219,23 @@ h3 {
     font-size: 1em;
     color: #333;
 }
+
+
+/* Search Form Styling */
+.search-bar {
+    margin-bottom: 20px;
+}
+#search-input {
+    width: calc(100% - 20px);
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.article-item {
+    margin-bottom: 20px;
+}
+
+.post-content h1 {
+    display: none !important;
+}

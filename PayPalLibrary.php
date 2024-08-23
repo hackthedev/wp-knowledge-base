@@ -1,6 +1,21 @@
 <?php
 
 class PayPalLibrary {
+
+
+    /*
+
+    Example Usage
+
+    require_once plugin_dir_path(__FILE__) . 'PayPalLibrary.php';
+    $paypal = new PayPalLibrary($client_id, $secret, $currency);
+    $description = get_the_title($post_id);
+    $return_url = get_permalink($post_id);
+    $cancel_url = get_permalink($post_id);
+    return $paypal->generatePurchase($price, $description, $return_url, $cancel_url);
+
+    */
+
     private $client_id;
     private $secret;
     private $currency;
