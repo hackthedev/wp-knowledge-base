@@ -1,0 +1,80 @@
+
+/* Tutorial Post CSS */
+.toc-content-container .post-content, .toc-widget{
+   background-color: #1D2222 !important;
+   border: 1px solid gray !important;
+}
+
+/* Post Text and Titles */
+.toc-content-container .post-content p, 
+.toc-content-container .post-content h1, 
+.toc-content-container .post-content h2,
+.toc-content-container .post-content h3,
+.toc-content-container .post-content h4,
+.toc-content-container .post-content h5{
+   color: #E0E0E0 !important;
+}
+
+/* Table of Contents Link Color */
+.toc-widget a {
+   color: #E0E0E0 !important;
+}
+
+/* Author Info Text */
+.toc-content-container .post-meta{
+   color: #E0E0E0 !important;
+}
+
+/* Inline Code Style*/
+.toc-content-container .post-content code {
+   background-color: #8E9F9F !important;
+   padding: 0 6px;
+   border-radius: 4px;
+   color: black!important;
+}
+
+
+/* Reset duofilter effect on images if needed */
+body img {
+    filter: none !important;
+}
+.post-content {
+   background-color: transparent !important;
+   border: none !important;
+}
+
+
+
+/* Tutorial Listing */
+/* Tutorial Listing Container */
+.knowledge-base-container {
+   background-color: transparent !important;
+}
+
+/* Listing Headline */
+.knowledge-base-container h2 {
+   color: #E0E0E0 !important;
+}
+
+/* Tutorial List Item */
+.knowledge-base-container .articles-list .article-item,
+.assigned-articles-container .article-item{
+   background-color: #E0E0E0 !important;
+}
+
+/* Tutorial Listing Headline and text */
+.knowledge-base-container .articles-list .article-item h2, .knowledge-base-container .articles-list .article-item p,
+.assigned-articles-container .article-item h2, .assigned-articles-container .article-description p { 
+   color: black !important;
+}
+
+/* Tutorial Listing Purchase Link */
+.knowledge-base-container .article-locked a {
+   color: red !important;
+}
+
+.knowledge-base-container .lock-icon {
+   background-color: white !important;
+   border-radius: 50% !important;
+   padding: 0 2px !important;
+}
