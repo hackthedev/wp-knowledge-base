@@ -1,168 +1,80 @@
 <?php
 
-class PayPalLibrary {
+require 'vendor/autoload.php';
 
+use PayPal\Api\Amount;
+use PayPal\Api\Payer;
+use PayPal\Api\Payment;
+use PayPal\Api\PaymentExecution;
+use PayPal\Api\RedirectUrls;
+use PayPal\Api\Transaction;
+use PayPal\Rest\ApiContext;
+use PayPal\Auth\OAuthTokenCredential;
+use PayPal\Exception\PayPalConnectionException;
 
-    /*
+class PayPalPayment {
+    private $apiContext;
 
-    Example Usage
-
-    require_once plugin_dir_path(__FILE__) . 'PayPalLibrary.php';
-    $paypal = new PayPalLibrary($client_id, $secret, $currency);
-    $description = get_the_title($post_id);
-    $return_url = get_permalink($post_id);
-    $cancel_url = get_permalink($post_id);
-    return $paypal->generatePurchase($price, $description, $return_url, $cancel_url);
-
-    */
-
-    private $client_id;
-    private $secret;
-    private $currency;
-    private $webhook_id;    
-
-    public function __construct($client_id, $secret, $currency = 'USD', $webhook_id = '') {
-        $this->client_id = $client_id;
-        $this->secret = $secret;
-        $this->currency = $currency;
-        $this->webhook_id = $webhook_id;
-    }
-
-    public function generatePurchase($amount, $description, $return_url, $cancel_url) {
-        $auth = base64_encode($this->client_id . ":" . $this->secret);
-    
-        // Get access token
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://api.paypal.com/v1/oauth2/token");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, "grant_type=client_credentials");
-        curl_setopt($ch, CURLOPT_USERPWD, $this->client_id . ":" . $this->secret);
-    
-        $headers = array();
-        $headers[] = "Accept: application/json";
-        $headers[] = "Accept-Language: en_US";
-        $headers[] = "Authorization: Basic " . $auth;
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    
-        $result = curl_exec($ch);
-        curl_close($ch);
-    
-        if (empty($result)) {
-            return false;
-        }
-    
-        $json = json_decode($result);
-        $access_token = isset($json->access_token) ? $json->access_token : null;
-    
-        if (!$access_token) {
-            return false;
-        }
-    
-    
-        // Create payment
-        $payment_data = array(
-            "intent" => "sale",
-            "redirect_urls" => array(
-                "return_url" => $return_url,
-                "cancel_url" => $cancel_url,
-            ),
-            "payer" => array(
-                "payment_method" => "paypal"
-            ),
-            "transactions" => array(
-                array(
-                    "amount" => array(
-                        "total" => $amount,
-                        "currency" => $this->currency
-                    ),
-                    "description" => $description
-                )
+    public function __construct($clientId, $clientSecret) {
+        $this->apiContext = new ApiContext(
+            new OAuthTokenCredential(
+                $clientId,     // ClientID
+                $clientSecret      // ClientSecret
             )
         );
-    
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://api.paypal.com/v1/payments/payment");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payment_data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-            "Content-Type: application/json",
-            "Authorization: Bearer " . $access_token
-        ));
-    
-        $result = curl_exec($ch);
-        curl_close($ch);
-    
-        if (empty($result)) {
-            return false;
-        }
-    
-        $json = json_decode($result);
-    
-        foreach ($json->links as $link) {
-            if ($link->rel == 'approval_url') {
-                return $link->href;
-            }
-        }
-    
-        return false;
-    }
-    
 
-    public function verifyWebhook($event) {
-        if (!$this->webhook_id) {
-            return false; // No webhook ID provided
-        }
-
-        $auth = base64_encode($this->client_id . ":" . $this->secret);
-
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://api.paypal.com/v1/notifications/verify-webhook-signature");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_POST, 1);
-
-        $headers = array();
-        $headers[] = "Content-Type: application/json";
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-        $request_data = array(
-            "transmission_id" => $_SERVER['HTTP_PAYPAL_TRANSMISSION_ID'],
-            "transmission_time" => $_SERVER['HTTP_PAYPAL_TRANSMISSION_TIME'],
-            "cert_url" => $_SERVER['HTTP_PAYPAL_CERT_URL'],
-            "auth_algo" => $_SERVER['HTTP_PAYPAL_AUTH_ALGO'],
-            "transmission_sig" => $_SERVER['HTTP_PAYPAL_TRANSMISSION_SIG'],
-            "webhook_id" => $this->webhook_id,
-            "webhook_event" => $event
-        );
-
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($request_data));
-
-        $result = curl_exec($ch);
-        curl_close($ch);
-
-        if (empty($result)) {
-            return false;
-        }
-
-        $json = json_decode($result);
-
-        return $json->verification_status === 'SUCCESS';
+        $this->apiContext->setConfig([
+            'mode' => 'live', // or 'sandbox'
+            'http.ConnectionTimeOut' => 30,
+            'log.LogEnabled' => false,
+            'log.FileName' => '',
+            'log.LogLevel' => 'ERROR',
+            'cache.enabled' => true,
+        ]);
     }
 
-    public function handleWebhook(callable $callback) {
-        // Retrieve the webhook event from the request
-        $request_body = file_get_contents('php://input');
-        $event = json_decode($request_body, true);
+    public function createPayment($amount, $currency, $returnUrl, $cancelUrl) {
+        $payer = new Payer();
+        $payer->setPaymentMethod('paypal');
 
-        // Verify the webhook event
-        if ($this->verifyWebhook($event)) {
-            // Execute the callback function with the verified event data
-            call_user_func($callback, $event);
+        $amountObj = new Amount();
+        $amountObj->setTotal($amount);
+        $amountObj->setCurrency($currency);
+
+        $transaction = new Transaction();
+        $transaction->setAmount($amountObj);
+        $transaction->setDescription("Payment Description");
+
+        $redirectUrls = new RedirectUrls();
+        $redirectUrls->setReturnUrl($returnUrl)
+            ->setCancelUrl($cancelUrl);
+
+        $payment = new Payment();
+        $payment->setIntent('sale')
+            ->setPayer($payer)
+            ->setTransactions([$transaction])
+            ->setRedirectUrls($redirectUrls);
+
+        try {
+            $payment->create($this->apiContext);
+        } catch (PayPalConnectionException $ex) {
+            throw new Exception("An error occurred while creating payment: " . $ex->getMessage());
         }
 
-        // Return a 200 response to PayPal
-        status_header(200);
-        exit();
+        return $payment;
+    }
+
+    public function executePayment($paymentId, $payerId) {
+        $payment = Payment::get($paymentId, $this->apiContext);
+        $execution = new PaymentExecution();
+        $execution->setPayerId($payerId);
+
+        try {
+            $result = $payment->execute($execution, $this->apiContext);
+        } catch (PayPalConnectionException $ex) {
+            throw new Exception("An error occurred while executing payment: " . $ex->getMessage());
+        }
+
+        return $result;
     }
 }

@@ -2,12 +2,12 @@
 /*
 Plugin Name: Shy's Tutorials & Handbooks
 Description: Create, manage, and restrict access to tutorials and handbooks, with features for manual user assignment and private content sharing.
-Version: 1.4
+Version: 1.3
 License: GPLv2
 Author: HackTheDev
 */
 
-require_once plugin_dir_path(__FILE__) . 'PayPalLibrary.php';
+require 'PayPalLibrary.php';
 
 
 // Add a meta box for marking a tutorial as paid/locked
@@ -170,6 +170,7 @@ function thp_generate_toc($content) {
     return '<div class="post-content"><h1 class="tutorial_page_title">' . get_the_title($post->ID) . '</h1>' . $content . '</div>';
 }
 add_filter('the_content', 'thp_generate_toc');
+
 
 
 
@@ -804,43 +805,77 @@ function thp_generate_paypal_link($post_id) {
     $price = get_post_meta($post_id, '_thp_tutorial_price', true);
 
     if (!$client_id || !$secret || !$price || !$currency) {
-        return false;
+        return false; // Missing essential data
     }
 
-    
-    $paypal = new PayPalLibrary($client_id, $secret, $currency);
+    $paypal = new PayPalPayment($client_id, $secret);
     $description = get_the_title($post_id);
-    $return_url = get_permalink($post_id);
+    $return_url = add_query_arg(
+        array(
+            'action' => 'execute_payment',
+            'post_id' => $post_id,
+        ),
+        get_permalink($post_id)
+    );
     $cancel_url = get_permalink($post_id);
 
-    return $paypal->generatePurchase($price, $description, $return_url, $cancel_url);
+    try {
+        $payment = $paypal->createPayment($price, $currency, $return_url, $cancel_url);
+        return $payment->getApprovalLink();
+    } catch (Exception $e) {
+        thp_log_error('PayPal link generation failed: ' . $e->getMessage());
+        return false;
+    }
 }
 
 
 
 
+function thp_execute_paypal_payment() {
+    if (isset($_GET['action']) && $_GET['action'] === 'execute_payment' && isset($_GET['paymentId']) && isset($_GET['PayerID']) && isset($_GET['post_id'])) {
+        $paymentId = $_GET['paymentId'];
+        $payerId = $_GET['PayerID'];
+        $post_id = intval($_GET['post_id']);
 
-function thp_save_transaction($user_id, $post_id, $transaction_id, $amount, $currency, $payer_email) {
-    $transaction_data = array(
-        'user_id' => $user_id,
-        'post_id' => $post_id,
-        'transaction_id' => $transaction_id,
-        'amount' => $amount,
-        'currency' => $currency,
-        'payer_email' => $payer_email,
-        'date' => current_time('mysql')
-    );
+        $client_id = get_option('thp_paypal_client_id');
+        $secret = get_option('thp_paypal_secret');
 
-    // Create a new transaction post
-    $transaction_post_id = wp_insert_post(array(
-        'post_type' => 'transaction',
-        'post_title' => 'Transaction for ' . get_the_title($post_id),
-        'post_status' => 'publish',
-        'meta_input' => $transaction_data,
-    ));
+        if (!$client_id || !$secret) {
+            thp_log_error('Missing PayPal API credentials.');
+            return;
+        }
+
+        $paypal = new PayPalPayment($client_id, $secret);
+
+        try {
+            $result = $paypal->executePayment($paymentId, $payerId);
+
+            if ($result->getState() === 'approved') {
+                thp_mark_tutorial_as_purchased(get_current_user_id(), $post_id);
+                wp_redirect(get_permalink($post_id) . '?payment=success');
+                exit();
+            } else {
+                wp_redirect(get_permalink($post_id) . '?payment=failed');
+                exit();
+            }
+        } catch (Exception $e) {
+            thp_log_error('Payment execution failed: ' . $e->getMessage());
+            wp_redirect(get_permalink($post_id) . '?payment=error');
+            exit();
+        }
+    }
 }
+add_action('template_redirect', 'thp_execute_paypal_payment');
+
+
+
+
+
 
 function thp_mark_tutorial_as_purchased($user_id, $post_id) {
+    // Log the action for debugging
+    thp_log_error("Marking post $post_id as purchased for user $user_id.");
+
     // Add the post ID to the user's purchased tutorials list (stored as user meta)
     $purchased_tutorials = get_user_meta($user_id, '_purchased_tutorials', true);
 
@@ -851,18 +886,28 @@ function thp_mark_tutorial_as_purchased($user_id, $post_id) {
     if (!in_array($post_id, $purchased_tutorials)) {
         $purchased_tutorials[] = $post_id;
         update_user_meta($user_id, '_purchased_tutorials', $purchased_tutorials);
+        thp_log_error("User $user_id granted access to post $post_id in purchased tutorials.");
+    } else {
+        thp_log_error("User $user_id already has access to post $post_id in purchased tutorials.");
+    }
 
-        // Optionally, you might want to grant the user access here
-        // Example: update post status or set a specific user role
-        $post = get_post($post_id);
-        if ($post && $post->post_status != 'publish') {
-            wp_update_post(array(
-                'ID' => $post_id,
-                'post_status' => 'publish'
-            ));
-        }
+    // Now add the user to the post's assigned users list
+    $assigned_users = get_post_meta($post_id, '_assigned_users', true);
+
+    if (!is_array($assigned_users)) {
+        $assigned_users = array();
+    }
+
+    if (!in_array($user_id, $assigned_users)) {
+        $assigned_users[] = $user_id;
+        update_post_meta($post_id, '_assigned_users', $assigned_users);
+        thp_log_error("User $user_id assigned to post $post_id in assigned users.");
+    } else {
+        thp_log_error("User $user_id is already assigned to post $post_id.");
     }
 }
+
+
 
 
 
@@ -890,38 +935,56 @@ function thp_handle_paypal_webhook() {
     global $wp_query;
 
     if (isset($wp_query->query_vars['paypal_webhook'])) {
+        thp_log_error('Webhook function triggered.');
+
         $client_id = get_option('thp_paypal_client_id');
         $secret = get_option('thp_paypal_secret');
-        $webhook_id = get_option('thp_paypal_webhook_id'); // Get the webhook ID from settings
+        $currency = get_option('thp_paypal_currency');
+        $webhook_id = get_option('thp_paypal_webhook_id');
 
         if (!$client_id || !$secret || !$webhook_id) {
             thp_log_error('Missing PayPal API credentials or Webhook ID.');
             return;
         }
 
-        $paypal = new PayPalLibrary($client_id, $secret, 'USD', $webhook_id);
+        $paypal = new PayPalPayment($client_id, $secret);
 
-        $paypal->handleWebhook(function ($event) {
-            if ($event['event_type'] == 'PAYMENT.SALE.COMPLETED') {
-                $sale_id = $event['resource']['id'];
-                $payer_email = $event['resource']['payer']['email_address'];
-                $amount = $event['resource']['amount']['total'];
-                $currency = $event['resource']['amount']['currency'];
+        try {
+            $event = $paypal->verifyWebhook();
+            thp_log_error('Event Type: ' . $event->event_type);
 
-                $custom = json_decode($event['resource']['invoice_number'], true);
-                $user_id = $custom['user_id'];
-                $post_id = $custom['post_id'];
+            switch ($event->event_type) {
+                case 'PAYMENT.SALE.COMPLETED':
+                    $resource = $event->resource;
+                    $custom_data = json_decode($resource->custom, true);
 
-                thp_save_transaction($user_id, $post_id, $sale_id, $amount, $currency, $payer_email);
-                thp_mark_tutorial_as_purchased($user_id, $post_id);
+                    $user_id = $custom_data['user_id'] ?? null;
+                    $post_id = $custom_data['post_id'] ?? null;
+
+                    if ($user_id && $post_id) {
+                        thp_save_transaction($user_id, $post_id, $resource->id, $resource->amount->total, $resource->amount->currency, $resource->payer->payer_info->email);
+                        thp_mark_tutorial_as_purchased($user_id, $post_id);
+                    } else {
+                        thp_log_error('Custom data (user_id, post_id) missing from the PayPal event.');
+                    }
+                    break;
+
+                default:
+                    thp_log_error('Unhandled Event Type: ' . $event->event_type);
+                    break;
             }
-        });
 
-        status_header(200); // Respond with 200 OK
+        } catch (Exception $e) {
+            thp_log_error('Webhook verification failed: ' . $e->getMessage());
+        }
+
+        status_header(200);
         exit();
     }
 }
+
 add_action('template_redirect', 'thp_handle_paypal_webhook');
+
 
 
 
@@ -962,3 +1025,33 @@ function thp_register_transaction_post_type() {
     register_post_type('transaction', $args);
 }
 add_action('init', 'thp_register_transaction_post_type');
+
+function thp_save_transaction($user_id, $post_id, $transaction_id, $amount, $currency, $payer_email) {
+    $transaction_data = array(
+        'user_id' => $user_id,
+        'post_id' => $post_id,
+        'transaction_id' => $transaction_id,
+        'amount' => $amount,
+        'currency' => $currency,
+        'payer_email' => $payer_email,
+        'date' => current_time('mysql')
+    );
+
+    // Create a new transaction post
+    $transaction_post_id = wp_insert_post(array(
+        'post_type' => 'transaction',
+        'post_title' => 'Transaction for ' . get_the_title($post_id),
+        'post_status' => 'publish',
+        'meta_input' => $transaction_data,
+    ));
+
+    // Log the transaction post ID for debugging
+    thp_log_error("Transaction post ID created: " . $transaction_post_id);
+
+    if (is_wp_error($transaction_post_id)) {
+        thp_log_error("Failed to save transaction: " . $transaction_post_id->get_error_message());
+    } else {
+        thp_log_error("Transaction saved successfully for post ID: " . $post_id);
+    }
+}
+
