@@ -2,7 +2,7 @@
 /*
 Plugin Name: Shy's Tutorials & Handbooks
 Description: Create, manage, and restrict access to tutorials and handbooks, with features for manual user assignment and private content sharing.
-Version: 1.3
+Version: 1.4
 License: GPLv2
 Author: HackTheDev
 */
