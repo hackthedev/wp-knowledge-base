@@ -2,12 +2,39 @@
 /*
 Plugin Name: Shy's Tutorials & Handbooks
 Description: Create, manage, and restrict access to tutorials and handbooks, with features for manual user assignment and private content sharing.
-Version: 1.4
+Version: 1.5
 License: GPLv2
 Author: HackTheDev
 */
 
 require 'PayPalLibrary.php';
+
+// Function to output meta description based on tutorial's short description
+function thp_add_meta_description() {
+    if (is_singular('tutorial_handbook')) {
+        global $post;
+
+        // Retrieve the custom short description
+        $description = get_post_meta($post->ID, '_thp_description', true);
+
+        // Use the post excerpt if no short description is set
+        if (empty($description)) {
+            $description = get_the_excerpt($post);
+        }
+
+        // Fallback to a generic description if all else fails
+        if (empty($description)) {
+            $description = 'Read this tutorial to learn more.';
+        }
+
+        // Output the meta description tag
+        echo '<meta name="description" content="' . esc_attr($description) . '">' . "\n";
+    }
+}
+add_action('wp_head', 'thp_add_meta_description');
+
+
+
 
 
 // Add a meta box for marking a tutorial as paid/locked
