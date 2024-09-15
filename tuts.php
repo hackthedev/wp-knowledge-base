@@ -11,7 +11,7 @@ require 'PayPalLibrary.php';
 
 // Function to output meta description based on tutorial's short description
 function thp_add_meta_description() {
-    if (is_singular('tutorial_handbook')) {
+    if (is_singular('shys_tutorial_handbook')) {
         global $post;
 
         // Retrieve the custom short description
@@ -43,7 +43,7 @@ function thp_add_paid_meta_box() {
         'thp_paid_meta_box',
         'Paid Tutorial',
         'thp_paid_meta_box_callback',
-        'tutorial_handbook',
+        'shys_tutorial_handbook',
         'side'
     );
 }
@@ -74,7 +74,7 @@ function thp_add_price_meta_box() {
         'thp_price_meta_box',
         'Tutorial Price',
         'thp_price_meta_box_callback',
-        'tutorial_handbook', // Ensure this matches your custom post type
+        'shys_tutorial_handbook', // Ensure this matches your custom post type
         'side',
         'high' // Position it high up in the sidebar
     );
@@ -120,7 +120,7 @@ function thp_register_custom_post_type() {
         'publicly_queryable' => true,
         'show_in_rest' => true
     );
-    register_post_type('tutorial_handbook', $args);
+    register_post_type('shys_tutorial_handbook', $args);
 }
 add_action('init', 'thp_register_custom_post_type');
 
@@ -128,7 +128,7 @@ add_action('init', 'thp_register_custom_post_type');
 function thp_generate_toc($content) {
     global $post;
 
-    if ($post->post_type === 'tutorial_handbook') {
+    if ($post->post_type === 'shys_tutorial_handbook') {
         $matches = array();
         preg_match_all('/<h([2-6])[^>]*>([^<]+)<\/h[2-6]>/', $content, $matches);
 
@@ -208,7 +208,7 @@ function thp_add_hide_meta_box() {
         'thp_hide_meta_box',
         'Hide from General Listing',
         'thp_hide_meta_box_callback',
-        'tutorial_handbook',
+        'shys_tutorial_handbook',
         'side'
     );
 }
@@ -238,7 +238,7 @@ function thp_add_description_meta_box() {
         'thp_description_meta_box', // ID
         'Post Description', // Title
         'thp_description_meta_box_callback', // Callback
-        'tutorial_handbook', // Post type
+        'shys_tutorial_handbook', // Post type
         'normal', // Context
         'high' // Priority
     );
@@ -276,7 +276,7 @@ function thp_save_description_meta_box($post_id) {
     }
 
     // Check the user's permissions.
-    if (isset($_POST['post_type']) && $_POST['post_type'] === 'tutorial_handbook') {
+    if (isset($_POST['post_type']) && $_POST['post_type'] === 'shys_tutorial_handbook') {
         if (!current_user_can('edit_post', $post_id)) {
             return;
         }
@@ -298,7 +298,7 @@ function thp_add_memo_meta_box() {
         'thp_memo_meta_box', // ID
         'Internal Memo', // Title
         'thp_memo_meta_box_callback', // Callback
-        'tutorial_handbook', // Post type
+        'shys_tutorial_handbook', // Post type
         'normal', // Context
         'high' // Priority
     );
@@ -336,7 +336,7 @@ function thp_save_memo_meta_box($post_id) {
     }
 
     // Check the user's permissions.
-    if (isset($_POST['post_type']) && $_POST['post_type'] === 'tutorial_handbook') {
+    if (isset($_POST['post_type']) && $_POST['post_type'] === 'shys_tutorial_handbook') {
         if (!current_user_can('edit_post', $post_id)) {
             return;
         }
@@ -358,7 +358,7 @@ function thp_enqueue_toc_styles() {
 
     // Check if the post is of type 'tutorial_handbook' or if it contains the shortcodes
     if (
-        is_singular('tutorial_handbook') ||
+        is_singular('shys_tutorial_handbook') ||
         (isset($post->post_content) && (has_shortcode($post->post_content, 'shy_tutorials') || has_shortcode($post->post_content, 'shy_private_tutorials')))
     ) {
         wp_enqueue_style('thp_toc_styles', plugin_dir_url(__FILE__) . 'style.css', array(), filemtime(plugin_dir_path(__FILE__) . 'style.css'));
@@ -368,7 +368,7 @@ add_action('wp_enqueue_scripts', 'thp_enqueue_toc_styles');
 
 // Access Control - Assign users to specific tutorials (simplified example)
 function thp_add_meta_boxes() {
-    add_meta_box('thp_access_control', 'Access Control', 'thp_access_control_callback', 'tutorial_handbook', 'side');
+    add_meta_box('thp_access_control', 'Access Control', 'thp_access_control_callback', 'shys_tutorial_handbook', 'side');
 }
 add_action('add_meta_boxes', 'thp_add_meta_boxes');
 
@@ -394,7 +394,7 @@ function thp_save_post($post_id) {
 add_action('save_post', 'thp_save_post');
 
 function thp_restrict_access($content) {
-    if (get_post_type() === 'tutorial_handbook') {
+    if (get_post_type() === 'shys_tutorial_handbook') {
         $is_paid = get_post_meta(get_the_ID(), '_is_paid', true); // Check if the post is marked as paid
 
         if ($is_paid) {
@@ -431,7 +431,7 @@ function shy_assigned_articles_shortcode($atts) {
 
             <?php
             // Query for all posts in the 'tutorial_handbook' post type
-            $args = array('post_type' => 'tutorial_handbook', 'posts_per_page' => -1);
+            $args = array('post_type' => 'shys_tutorial_handbook', 'posts_per_page' => -1);
             $query = new WP_Query($args);
 
             if ($query->have_posts()) {
@@ -504,8 +504,8 @@ function shy_knowledge_base_shortcode($atts) {
         <div class="articles-list">
 
             <?php
-            // Query for all posts in the 'tutorial_handbook' post type
-            $args = array('post_type' => 'tutorial_handbook', 'posts_per_page' => -1);
+            // Query for all posts in the 'shys_tutorial_handbook' post type
+            $args = array('post_type' => 'shys_tutorial_handbook', 'posts_per_page' => -1);
             $query = new WP_Query($args);
 
             if ($query->have_posts()) :
@@ -578,12 +578,12 @@ add_shortcode('shy_tutorials', 'shy_knowledge_base_shortcode');
 // Add PayPal Settings submenu
 function thp_add_paypal_settings_submenu() {
     add_submenu_page(
-        'edit.php?post_type=tutorial_handbook', // Parent slug
-        'PayPal Settings',                      // Page title
-        'PayPal Settings',                      // Menu title
-        'manage_options',                       // Capability
-        'thp_paypal_settings',                  // Menu slug
-        'thp_paypal_settings_page_callback'     // Callback function
+        'edit.php?post_type=shys_tutorial_handbook', // Parent slug
+        'PayPal Settings',                           // Page title
+        'PayPal Settings',                           // Menu title
+        'manage_options',                            // Capability
+        'thp_paypal_settings',                       // Menu slug
+        'thp_paypal_settings_page_callback'          // Callback function
     );
 }
 add_action('admin_menu', 'thp_add_paypal_settings_submenu');
@@ -746,7 +746,7 @@ function thp_render_single_article($post_id, $is_paid, $user_has_access, $descri
 /* Logs */
 function thp_register_logs_page() {
     add_submenu_page(
-        'edit.php?post_type=tutorial_handbook', // Parent slug
+        'edit.php?post_type=shys_tutorial_handbook', // Parent slug
         'Logs',                           // Page title
         'Logs',                           // Menu title
         'manage_options',                       // Capability
@@ -1040,7 +1040,7 @@ function thp_register_transaction_post_type() {
         'public'             => false,
         'publicly_queryable' => false,
         'show_ui'            => true,
-        'show_in_menu'       => 'edit.php?post_type=tutorial_handbook',  // Make it a sub-menu
+        'show_in_menu'       => 'edit.php?post_type=shys_tutorial_handbook',  // Make it a sub-menu
         'query_var'          => true,
         'capability_type'    => 'post',
         'has_archive'        => false,
