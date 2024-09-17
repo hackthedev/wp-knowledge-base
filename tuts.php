@@ -42,7 +42,6 @@ function thp_register_custom_post_type() {
         'capability_type'    => 'post',
         'has_archive'        => false,
         'hierarchical'       => false,
-        'menu_position'      => 0,
         'supports'           => array('title', 'editor', 'thumbnail'),
         'show_in_rest'       => true, // Important for block editor and REST API support
     );
