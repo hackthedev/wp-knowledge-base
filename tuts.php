@@ -5,7 +5,10 @@ Description: Create, manage, and restrict access to tutorials and handbooks, wit
 Version: 1.5
 License: GPLv2
 Author: HackTheDev
+Text Domain: shys-tutorials-handbooks
 */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 require 'PayPalLibrary.php';
 
@@ -386,7 +389,7 @@ function thp_access_control_callback($post) {
 
 function thp_save_post($post_id) {
     if (isset($_POST['assigned_users'])) {
-        update_post_meta($post_id, '_assigned_users', $_POST['assigned_users']);
+        update_post_meta($post_id, '_assigned_users', wp_unslash($_POST['assigned_users']));
     } else {
         delete_post_meta($post_id, '_assigned_users');
     }
@@ -764,7 +767,7 @@ function thp_log_error($message) {
     $message = sanitize_text_field($message);
 
     // Add a timestamp to the log message
-    $timestamp = date('Y-m-d H:i:s');
+    $timestamp = gmdate('Y-m-d H:i:s');
     $log_entry = "{$timestamp} - {$message}";
 
     // Get existing logs, or initialize an empty array if none exist
@@ -860,9 +863,9 @@ function thp_generate_paypal_link($post_id) {
 
 function thp_execute_paypal_payment() {
     if (isset($_GET['action']) && $_GET['action'] === 'execute_payment' && isset($_GET['paymentId']) && isset($_GET['PayerID']) && isset($_GET['post_id'])) {
-        $paymentId = $_GET['paymentId'];
-        $payerId = $_GET['PayerID'];
-        $post_id = intval($_GET['post_id']);
+        $paymentId = wp_unslash($_GET['paymentId']);
+        $payerId = wp_unslash($_GET['PayerID']);
+        $post_id = wp_unslash(intval($_GET['post_id']));
 
         $client_id = get_option('thp_paypal_client_id');
         $secret = get_option('thp_paypal_secret');
