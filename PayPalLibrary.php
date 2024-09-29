@@ -1,5 +1,7 @@
 <?php
 
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly 
+
 require 'vendor/autoload.php';
 
 use PayPal\Api\Amount;
